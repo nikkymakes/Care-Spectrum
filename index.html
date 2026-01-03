@@ -1,50 +1,76 @@
-import React, { useState } from 'react';
-import { Search, Sparkles, Download, Copy, Loader2, X, Edit2, CheckCircle } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareSpectrum™ | AI-Powered Weekly Digest Generator</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e7e5e4 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-export default function CareSpectrum() {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState('');
-  const [digest, setDigest] = useState(null);
-  const [error, setError] = useState(null);
+    <script type="text/babel">
+        const { useState } = React;
 
-  const categories = [
-    { id: 'foster', name: 'Foster & Kinship', icon: '🏠', searchTerms: ['foster care uk', 'kinship care uk', 'fostering news uk'] },
-    { id: 'send', name: 'SEND & Education', icon: '📚', searchTerms: ['SEND uk', 'EHCP uk', 'special educational needs uk'] },
-    { id: 'safeguarding', name: 'Safeguarding & Mental Health', icon: '🛡️', searchTerms: ['child safeguarding uk', 'child mental health uk', 'child protection uk'] },
-    { id: 'residential', name: 'Residential & Policy', icon: '🏛️', searchTerms: ['children\'s homes uk', 'children\'s services uk', 'ofsted children'] },
-    { id: 'voices', name: 'Lived Voices & Justice', icon: '🗣️', searchTerms: ['care experienced uk', 'youth justice uk', 'children in care uk'] }
-  ];
+        function CareSpectrum() {
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [progress, setProgress] = useState('');
+            const [digest, setDigest] = useState(null);
+            const [error, setError] = useState(null);
 
-  const generateDigest = async () => {
-    setIsGenerating(true);
-    setError(null);
-    setProgress('Starting digest generation...');
-    
-    try {
-      const digestData = {
-        overview: '',
-        categories: {},
-        voices: [],
-        reflection: ''
-      };
+            const categories = [
+                { id: 'foster', name: 'Foster & Kinship', icon: '🏠', searchTerms: ['foster care uk news', 'kinship care uk'] },
+                { id: 'send', name: 'SEND & Education', icon: '📚', searchTerms: ['SEND uk news', 'EHCP uk'] },
+                { id: 'safeguarding', name: 'Safeguarding & Mental Health', icon: '🛡️', searchTerms: ['child safeguarding uk', 'child mental health uk'] },
+                { id: 'residential', name: 'Residential & Policy', icon: '🏛️', searchTerms: ['children homes uk', 'ofsted children'] },
+                { id: 'voices', name: 'Lived Voices & Justice', icon: '🗣️', searchTerms: ['care experienced uk', 'youth justice uk'] }
+            ];
 
-      // Generate overview
-      setProgress('📊 Generating weekly overview...');
-      const overviewResponse = await callClaude(
-        `Search for UK children's care sector news from the past 7 days and provide a 3-5 line overview of major themes, tensions, or emerging patterns. Focus on foster care, SEND, safeguarding, residential care, and policy developments.`,
-        true
-      );
-      digestData.overview = extractText(overviewResponse);
+            const generateDigest = async () => {
+                setIsGenerating(true);
+                setError(null);
+                setProgress('Starting digest generation...');
+                
+                try {
+                    const digestData = {
+                        overview: '',
+                        categories: {},
+                        voices: [],
+                        reflection: ''
+                    };
 
-      // Search each category
-      for (const category of categories) {
-        setProgress(`${category.icon} Searching ${category.name}...`);
-        
-        const items = [];
-        for (const term of category.searchTerms) {
-          try {
-            const response = await callClaude(
-              `Search for recent UK news about "${term}" from the past 7 days. Find 2-3 significant stories. For each story, provide in this exact JSON format:
+                    // Generate overview
+                    setProgress('📊 Generating weekly overview...');
+                    const overviewResponse = await callClaude(
+                        `Search for UK children's care sector news from the past 7 days and provide a 3-5 line overview of major themes, tensions, or emerging patterns. Focus on foster care, SEND, safeguarding, residential care, and policy developments.`,
+                        true
+                    );
+                    digestData.overview = extractText(overviewResponse);
+
+                    // Search each category
+                    for (const category of categories) {
+                        setProgress(`${category.icon} Searching ${category.name}...`);
+                        
+                        const items = [];
+                        for (const term of category.searchTerms.slice(0, 2)) {
+                            try {
+                                const response = await callClaude(
+                                    `Search for recent UK news about "${term}" from the past 7 days. Find 2-3 significant stories. For each story, provide in this exact JSON format:
 [
   {
     "headline": "brief summary of the story",
@@ -54,392 +80,389 @@ export default function CareSpectrum() {
   }
 ]
 Only return valid JSON, nothing else.`,
-              true
-            );
-            
-            const text = extractText(response);
-            // Try to parse JSON from the response
-            const jsonMatch = text.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              items.push(...parsed.slice(0, 2)); // Limit to 2 per search
-            }
-          } catch (err) {
-            console.error(`Error searching ${term}:`, err);
-          }
-          
-          // Brief delay to avoid rate limits
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        digestData.categories[category.id] = {
-          name: category.name,
-          icon: category.icon,
-          items: items.slice(0, 5) // Max 5 items per category
-        };
-      }
+                                    true
+                                );
+                                
+                                const text = extractText(response);
+                                const jsonMatch = text.match(/\[[\s\S]*\]/);
+                                if (jsonMatch) {
+                                    try {
+                                        const parsed = JSON.parse(jsonMatch[0]);
+                                        items.push(...parsed.slice(0, 2));
+                                    } catch (e) {
+                                        console.log('Parse error:', e);
+                                    }
+                                }
+                            } catch (err) {
+                                console.error(`Error searching ${term}:`, err);
+                            }
+                            
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                        }
+                        
+                        digestData.categories[category.id] = {
+                            name: category.name,
+                            icon: category.icon,
+                            items: items.slice(0, 5)
+                        };
+                    }
 
-      // Get voices from the sector
-      setProgress('💬 Finding voices from the sector...');
-      const voicesResponse = await callClaude(
-        `Search for recent quotes or statements from UK foster carers, care-experienced people, or SEND advocates on social media (X/Twitter, LinkedIn) from the past week. Find 3 impactful quotes. Format as JSON:
+                    // Get voices
+                    setProgress('💬 Finding voices from the sector...');
+                    const voicesResponse = await callClaude(
+                        `Search for recent quotes from UK foster carers, care-experienced people, or SEND advocates on social media from the past week. Find 3 impactful quotes. Format as JSON:
 [
   {
     "quote": "the quote text",
     "name": "name or @handle",
-    "platform": "X or LinkedIn or Facebook",
-    "url": "link to post if available"
+    "platform": "X or LinkedIn",
+    "url": "link if available"
   }
 ]
-Only return valid JSON, nothing else.`,
-        true
-      );
-      
-      try {
-        const voicesText = extractText(voicesResponse);
-        const jsonMatch = voicesText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          digestData.voices = JSON.parse(jsonMatch[0]).slice(0, 3);
-        }
-      } catch (err) {
-        console.error('Error parsing voices:', err);
-        digestData.voices = [];
-      }
+Only return valid JSON.`,
+                        true
+                    );
+                    
+                    try {
+                        const voicesText = extractText(voicesResponse);
+                        const jsonMatch = voicesText.match(/\[[\s\S]*\]/);
+                        if (jsonMatch) {
+                            digestData.voices = JSON.parse(jsonMatch[0]).slice(0, 3);
+                        }
+                    } catch (err) {
+                        digestData.voices = [];
+                    }
 
-      // Generate reflection
-      setProgress('💡 Generating reflection...');
-      const reflectionResponse = await callClaude(
-        `Based on this week's UK children's care sector developments (foster care, SEND, safeguarding, policy), write a brief 2-3 line reflection on what the week reveals - patterns, blind spots, or shifts in power. Be insightful but concise.`,
-        true
-      );
-      digestData.reflection = extractText(reflectionResponse);
+                    // Generate reflection
+                    setProgress('💡 Generating reflection...');
+                    const reflectionResponse = await callClaude(
+                        `Based on this week's UK children's care sector developments, write a brief 2-3 line reflection on what the week reveals - patterns, blind spots, or shifts in power.`,
+                        true
+                    );
+                    digestData.reflection = extractText(reflectionResponse);
 
-      setProgress('✅ Digest generated!');
-      setDigest(digestData);
-      
-    } catch (err) {
-      setError(err.message || 'Failed to generate digest');
-      console.error('Generation error:', err);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+                    setProgress('✅ Digest generated!');
+                    setDigest(digestData);
+                    
+                } catch (err) {
+                    setError(err.message || 'Failed to generate digest');
+                    console.error('Generation error:', err);
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
 
-  const callClaude = async (prompt, useWebSearch = false) => {
-    const body = {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }]
-    };
+            const callClaude = async (prompt, useWebSearch = false) => {
+                const body = {
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 1000,
+                    messages: [{ role: "user", content: prompt }]
+                };
 
-    if (useWebSearch) {
-      body.tools = [{ type: "web_search_20250305", name: "web_search" }];
-    }
+                if (useWebSearch) {
+                    body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+                }
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
 
-    return await response.json();
-  };
+                return await response.json();
+            };
 
-  const extractText = (response) => {
-    return response.content
-      .filter(item => item.type === "text")
-      .map(item => item.text)
-      .join("\n")
-      .trim();
-  };
+            const extractText = (response) => {
+                return response.content
+                    .filter(item => item.type === "text")
+                    .map(item => item.text)
+                    .join("\n")
+                    .trim();
+            };
 
-  const removeItem = (categoryId, itemIndex) => {
-    setDigest(prev => ({
-      ...prev,
-      categories: {
-        ...prev.categories,
-        [categoryId]: {
-          ...prev.categories[categoryId],
-          items: prev.categories[categoryId].items.filter((_, i) => i !== itemIndex)
-        }
-      }
-    }));
-  };
+            const removeItem = (categoryId, itemIndex) => {
+                setDigest(prev => ({
+                    ...prev,
+                    categories: {
+                        ...prev.categories,
+                        [categoryId]: {
+                            ...prev.categories[categoryId],
+                            items: prev.categories[categoryId].items.filter((_, i) => i !== itemIndex)
+                        }
+                    }
+                }));
+            };
 
-  const removeVoice = (index) => {
-    setDigest(prev => ({
-      ...prev,
-      voices: prev.voices.filter((_, i) => i !== index)
-    }));
-  };
+            const removeVoice = (index) => {
+                setDigest(prev => ({
+                    ...prev,
+                    voices: prev.voices.filter((_, i) => i !== index)
+                }));
+            };
 
-  const exportDigest = () => {
-    if (!digest) return '';
+            const exportDigest = () => {
+                if (!digest) return '';
 
-    let output = '📊 WEEKLY OVERVIEW\n\n';
-    output += digest.overview || 'No overview generated.';
-    output += '\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    output += '🔍 THIS WEEK\'S CARESPECTRUM\n\n';
+                let output = '📊 WEEKLY OVERVIEW\n\n';
+                output += digest.overview || 'No overview generated.';
+                output += '\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                output += '🔍 THIS WEEK\'S CARESPECTRUM\n\n';
 
-    // Categories
-    Object.values(digest.categories).forEach(category => {
-      if (category.items.length > 0) {
-        output += `**${category.name}**\n`;
-        category.items.forEach(item => {
-          output += `• ${item.headline}`;
-          if (item.source) output += ` — ${item.source}`;
-          if (item.url) output += ` (${item.url})`;
-          if (item.perspective) output += ` *(${item.perspective})*`;
-          output += '\n';
-        });
-        output += '\n';
-      }
-    });
+                Object.values(digest.categories).forEach(category => {
+                    if (category.items.length > 0) {
+                        output += `**${category.name}**\n`;
+                        category.items.forEach(item => {
+                            output += `• ${item.headline}`;
+                            if (item.source) output += ` — ${item.source}`;
+                            if (item.url) output += ` (${item.url})`;
+                            if (item.perspective) output += ` *(${item.perspective})*`;
+                            output += '\n';
+                        });
+                        output += '\n';
+                    }
+                });
 
-    // Voices
-    if (digest.voices.length > 0) {
-      output += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
-      output += '🗣️ VOICES FROM THE SECTOR\n\n';
-      digest.voices.forEach(voice => {
-        output += `"${voice.quote}"\n`;
-        output += `— ${voice.name} [${voice.platform}]`;
-        if (voice.url) output += ` 🔗 ${voice.url}`;
-        output += '\n\n';
-      });
-    }
+                if (digest.voices.length > 0) {
+                    output += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                    output += '🗣️ VOICES FROM THE SECTOR\n\n';
+                    digest.voices.forEach(voice => {
+                        output += `"${voice.quote}"\n`;
+                        output += `— ${voice.name} [${voice.platform}]`;
+                        if (voice.url) output += ` 🔗 ${voice.url}`;
+                        output += '\n\n';
+                    });
+                }
 
-    // Reflection
-    output += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    output += '💡 WHY IT MATTERS\n\n';
-    output += digest.reflection || 'No reflection generated.';
-    output += '\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    
-    // Closing
-    output += '📡 STAY INFORMED\n\n';
-    output += 'CareSpectrum widens the lens. Not just the headlines, but the margins too. Follow for full-spectrum insight each week.\n\n';
-    output += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    
-    // Attribution
-    output += '📋 ATTRIBUTION & LEGAL NOTICE\n\n';
-    output += 'CareSpectrum™ is an independent, AI-powered digest created and trademarked by Adenike Omoregbee. It exists to widen the lens on UK children and young people\'s care — surfacing all sides of the story, from policy to lived reality.\n\n';
-    output += 'Designed to be clear, balanced, and rooted in both professional and carer insight, CareSpectrum gathers from media, government, and social platforms — including the voices often left out.\n\n';
-    output += '© 2025 Adenike Omoregbee ... Foster Carer. All rights reserved.\n';
-    output += 'To connect, collaborate, or contribute: @adenikeomoregbee on LinkedIn\n\n';
-    output += '#CareSpectrum #CreatedByAdenike #FullSpectrumCare';
+                output += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                output += '💡 WHY IT MATTERS\n\n';
+                output += digest.reflection || 'No reflection generated.';
+                output += '\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                output += '📡 STAY INFORMED\n\n';
+                output += 'CareSpectrum widens the lens. Not just the headlines, but the margins too. Follow for full-spectrum insight each week.\n\n';
+                output += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                output += '📋 ATTRIBUTION & LEGAL NOTICE\n\n';
+                output += 'CareSpectrum™ is an independent, AI-powered digest created and trademarked by Adenike Omoregbee.\n\n';
+                output += '© 2025 Adenike Omoregbee ... Foster Carer. All rights reserved.\n';
+                output += 'To connect: @adenikeomoregbee on LinkedIn\n\n';
+                output += '#CareSpectrum #CreatedByAdenike #FullSpectrumCare';
 
-    return output;
-  };
+                return output;
+            };
 
-  const copyToClipboard = () => {
-    const text = exportDigest();
-    navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
-  };
+            const copyToClipboard = () => {
+                const text = exportDigest();
+                navigator.clipboard.writeText(text);
+                alert('Copied to clipboard!');
+            };
 
-  const downloadDigest = () => {
-    const text = exportDigest();
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `carespectrum-${new Date().toISOString().split('T')[0]}.txt`;
-    a.click();
-  };
+            const downloadDigest = () => {
+                const text = exportDigest();
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `carespectrum-${new Date().toISOString().split('T')[0]}.txt`;
+                a.click();
+            };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">
-      {/* Header */}
-      <div className="bg-white border-b border-stone-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="h-1.5 bg-gradient-to-r from-purple-600 via-blue-500 via-teal-500 via-emerald-500 via-amber-500 to-rose-500 rounded-full mb-6" />
-          <h1 className="text-5xl font-serif font-bold text-purple-900 mb-2">CareSpectrum™</h1>
-          <p className="text-stone-600 text-lg tracking-wide uppercase text-sm">AI-Powered Weekly Digest Generator</p>
-          <p className="text-stone-500 italic mt-2">Widening the lens. Not just the headlines, but the margins too.</p>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Start Screen */}
-        {!isGenerating && !digest && (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full mx-auto mb-6 flex items-center justify-center">
-              <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="text-3xl font-serif font-bold text-stone-800 mb-4">
-              Generate This Week's Digest
-            </h2>
-            <p className="text-stone-600 mb-8 max-w-2xl mx-auto">
-              Click the button below and CareSpectrum™ will automatically search UK news, 
-              scan social media, categorize stories, and generate a complete weekly digest 
-              for the children's care sector.
-            </p>
-            <button
-              onClick={generateDigest}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-3 mx-auto"
-            >
-              <Search className="w-5 h-5" />
-              Generate Digest
-            </button>
-            <p className="text-stone-400 text-sm mt-6">
-              Typically takes 30-60 seconds
-            </p>
-          </div>
-        )}
-
-        {/* Generating State */}
-        {isGenerating && (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <Loader2 className="w-16 h-16 text-purple-600 animate-spin mx-auto mb-6" />
-            <h2 className="text-2xl font-serif font-bold text-stone-800 mb-4">
-              Generating Your Digest...
-            </h2>
-            <p className="text-stone-600 mb-4">{progress}</p>
-            <div className="w-full bg-stone-200 rounded-full h-2 max-w-md mx-auto">
-              <div className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full animate-pulse" style={{width: '70%'}} />
-            </div>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-            <p className="text-red-800 font-semibold mb-2">Error generating digest</p>
-            <p className="text-red-600 text-sm">{error}</p>
-            <button
-              onClick={() => { setError(null); setDigest(null); }}
-              className="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Results */}
-        {digest && !isGenerating && (
-          <div className="space-y-6">
-            {/* Action Buttons */}
-            <div className="bg-white rounded-xl shadow-lg p-6 flex gap-4 justify-between items-center">
-              <div className="flex items-center gap-2 text-emerald-600">
-                <CheckCircle className="w-5 h-5" />
-                <span className="font-semibold">Digest Generated! Review and edit below.</span>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={copyToClipboard}
-                  className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 flex items-center gap-2"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy
-                </button>
-                <button
-                  onClick={downloadDigest}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Download
-                </button>
-                <button
-                  onClick={() => setDigest(null)}
-                  className="bg-stone-200 text-stone-700 px-4 py-2 rounded-lg hover:bg-stone-300"
-                >
-                  New Digest
-                </button>
-              </div>
-            </div>
-
-            {/* Overview */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-serif font-bold text-purple-900 mb-4 flex items-center gap-2">
-                📊 Weekly Overview
-              </h3>
-              <p className="text-stone-700 leading-relaxed">{digest.overview}</p>
-            </div>
-
-            {/* Categories */}
-            {Object.entries(digest.categories).map(([id, category]) => (
-              category.items.length > 0 && (
-                <div key={id} className="bg-white rounded-xl shadow-lg p-6">
-                  <h3 className="text-xl font-serif font-bold text-blue-900 mb-4 flex items-center gap-2">
-                    <span>{category.icon}</span>
-                    {category.name}
-                  </h3>
-                  <div className="space-y-3">
-                    {category.items.map((item, idx) => (
-                      <div key={idx} className="border-l-4 border-teal-500 pl-4 pr-4 py-2 bg-stone-50 rounded-r group hover:bg-stone-100 transition-colors relative">
-                        <button
-                          onClick={() => removeItem(id, idx)}
-                          className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                        <p className="text-stone-800 font-medium">{item.headline}</p>
-                        <p className="text-stone-600 text-sm mt-1">
-                          {item.source && <span className="font-semibold">{item.source}</span>}
-                          {item.perspective && <span className="italic ml-2">({item.perspective})</span>}
-                        </p>
-                        {item.url && (
-                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm hover:underline">
-                            Read more →
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            ))}
-
-            {/* Voices */}
-            {digest.voices.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-serif font-bold text-emerald-900 mb-4 flex items-center gap-2">
-                  🗣️ Voices from the Sector
-                </h3>
-                <div className="space-y-4">
-                  {digest.voices.map((voice, idx) => (
-                    <div key={idx} className="border border-stone-200 p-4 rounded-lg bg-stone-50 group hover:bg-stone-100 transition-colors relative">
-                      <button
-                        onClick={() => removeVoice(idx)}
-                        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <p className="text-stone-700 italic mb-2">"{voice.quote}"</p>
-                      <p className="text-stone-600 text-sm">
-                        — {voice.name} <span className="text-stone-400">[{voice.platform}]</span>
-                        {voice.url && (
-                          <a href={voice.url} target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-600 hover:underline">
-                            🔗
-                          </a>
-                        )}
-                      </p>
+            return (
+                <div style={{minHeight: '100vh', background: 'linear-gradient(135deg, #f8fafc 0%, #e7e5e4 100%)'}}>
+                    {/* Header */}
+                    <div style={{background: 'white', borderBottom: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.1)'}}>
+                        <div style={{maxWidth: '1200px', margin: '0 auto', padding: '2rem'}}>
+                            <div style={{height: '6px', background: 'linear-gradient(90deg, #9333ea 0%, #3b82f6 20%, #14b8a6 40%, #10b981 60%, #f59e0b 80%, #ef4444 100%)', borderRadius: '3px', marginBottom: '1.5rem'}} />
+                            <h1 style={{fontSize: '3rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#581c87', marginBottom: '0.5rem'}}>CareSpectrum™</h1>
+                            <p style={{color: '#78716c', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.1em'}}>AI-Powered Weekly Digest Generator</p>
+                            <p style={{color: '#a8a29e', fontStyle: 'italic', marginTop: '0.5rem'}}>Widening the lens. Not just the headlines, but the margins too.</p>
+                        </div>
                     </div>
-                  ))}
+
+                    <div style={{maxWidth: '1200px', margin: '0 auto', padding: '2rem'}}>
+                        {/* Start Screen */}
+                        {!isGenerating && !digest && (
+                            <div style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '3rem', textAlign: 'center'}}>
+                                <div style={{width: '80px', height: '80px', background: 'linear-gradient(135deg, #9333ea, #3b82f6)', borderRadius: '50%', margin: '0 auto 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem'}}>
+                                    ✨
+                                </div>
+                                <h2 style={{fontSize: '2rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#1c1917', marginBottom: '1rem'}}>
+                                    Generate This Week's Digest
+                                </h2>
+                                <p style={{color: '#78716c', marginBottom: '2rem', maxWidth: '600px', margin: '0 auto 2rem'}}>
+                                    Click the button below and CareSpectrum™ will automatically search UK news, 
+                                    scan social media, categorize stories, and generate a complete weekly digest 
+                                    for the children's care sector.
+                                </p>
+                                <button
+                                    onClick={generateDigest}
+                                    style={{
+                                        background: 'linear-gradient(135deg, #9333ea, #3b82f6)',
+                                        color: 'white',
+                                        padding: '1rem 2rem',
+                                        borderRadius: '8px',
+                                        fontWeight: '600',
+                                        fontSize: '1.125rem',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.75rem'
+                                    }}
+                                >
+                                    🔍 Generate Digest
+                                </button>
+                                <p style={{color: '#a8a29e', fontSize: '0.875rem', marginTop: '1.5rem'}}>
+                                    Typically takes 30-60 seconds
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Generating State */}
+                        {isGenerating && (
+                            <div style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '3rem', textAlign: 'center'}}>
+                                <div style={{fontSize: '4rem', marginBottom: '1.5rem'}}>⏳</div>
+                                <h2 style={{fontSize: '1.5rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#1c1917', marginBottom: '1rem'}}>
+                                    Generating Your Digest...
+                                </h2>
+                                <p style={{color: '#78716c', marginBottom: '1rem'}}>{progress}</p>
+                                <div style={{width: '100%', maxWidth: '500px', background: '#e7e5e4', borderRadius: '999px', height: '8px', margin: '0 auto'}}>
+                                    <div style={{background: 'linear-gradient(90deg, #9333ea, #3b82f6)', height: '8px', borderRadius: '999px', width: '70%', animation: 'pulse 2s infinite'}} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Error State */}
+                        {error && (
+                            <div style={{background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1.5rem', textAlign: 'center'}}>
+                                <p style={{color: '#991b1b', fontWeight: '600', marginBottom: '0.5rem'}}>Error generating digest</p>
+                                <p style={{color: '#dc2626', fontSize: '0.875rem'}}>{error}</p>
+                                <button
+                                    onClick={() => { setError(null); setDigest(null); }}
+                                    style={{marginTop: '1rem', background: '#dc2626', color: 'white', padding: '0.5rem 1rem', borderRadius: '6px', border: 'none', cursor: 'pointer'}}
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Results */}
+                        {digest && !isGenerating && (
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
+                                {/* Action Bar */}
+                                <div style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981'}}>
+                                        <span style={{fontSize: '1.25rem'}}>✅</span>
+                                        <span style={{fontWeight: '600'}}>Digest Generated! Review and edit below.</span>
+                                    </div>
+                                    <div style={{display: 'flex', gap: '0.75rem'}}>
+                                        <button onClick={copyToClipboard} style={{background: '#f59e0b', color: 'white', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                            📋 Copy
+                                        </button>
+                                        <button onClick={downloadDigest} style={{background: '#3b82f6', color: 'white', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                            💾 Download
+                                        </button>
+                                        <button onClick={() => setDigest(null)} style={{background: '#e7e5e4', color: '#1c1917', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer'}}>
+                                            New Digest
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Overview */}
+                                <div style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '1.5rem'}}>
+                                    <h3 style={{fontSize: '1.25rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#581c87', marginBottom: '1rem'}}>
+                                        📊 Weekly Overview
+                                    </h3>
+                                    <p style={{color: '#44403c', lineHeight: '1.7'}}>{digest.overview}</p>
+                                </div>
+
+                                {/* Categories */}
+                                {Object.entries(digest.categories).map(([id, category]) => (
+                                    category.items.length > 0 && (
+                                        <div key={id} style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '1.5rem'}}>
+                                            <h3 style={{fontSize: '1.25rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#1e40af', marginBottom: '1rem'}}>
+                                                {category.icon} {category.name}
+                                            </h3>
+                                            <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+                                                {category.items.map((item, idx) => (
+                                                    <div key={idx} style={{borderLeft: '4px solid #14b8a6', paddingLeft: '1rem', paddingRight: '1rem', paddingTop: '0.5rem', paddingBottom: '0.5rem', background: '#fafaf9', borderRadius: '0 8px 8px 0', position: 'relative'}}>
+                                                        <button
+                                                            onClick={() => removeItem(id, idx)}
+                                                            style={{position: 'absolute', right: '0.5rem', top: '0.5rem', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1.25rem'}}
+                                                        >
+                                                            ×
+                                                        </button>
+                                                        <p style={{color: '#1c1917', fontWeight: '500', marginBottom: '0.25rem'}}>{item.headline}</p>
+                                                        <p style={{color: '#78716c', fontSize: '0.875rem'}}>
+                                                            {item.source && <span style={{fontWeight: '600'}}>{item.source}</span>}
+                                                            {item.perspective && <span style={{fontStyle: 'italic', marginLeft: '0.5rem'}}>({item.perspective})</span>}
+                                                        </p>
+                                                        {item.url && (
+                                                            <a href={item.url} target="_blank" rel="noopener noreferrer" style={{color: '#3b82f6', fontSize: '0.875rem', textDecoration: 'none'}}>
+                                                                Read more →
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )
+                                ))}
+
+                                {/* Voices */}
+                                {digest.voices.length > 0 && (
+                                    <div style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '1.5rem'}}>
+                                        <h3 style={{fontSize: '1.25rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#047857', marginBottom: '1rem'}}>
+                                            🗣️ Voices from the Sector
+                                        </h3>
+                                        <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                                            {digest.voices.map((voice, idx) => (
+                                                <div key={idx} style={{border: '1px solid #e7e5e4', padding: '1rem', borderRadius: '8px', background: '#fafaf9', position: 'relative'}}>
+                                                    <button
+                                                        onClick={() => removeVoice(idx)}
+                                                        style={{position: 'absolute', right: '0.5rem', top: '0.5rem', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1.25rem'}}
+                                                    >
+                                                        ×
+                                                    </button>
+                                                    <p style={{color: '#44403c', fontStyle: 'italic', marginBottom: '0.5rem'}}>"{voice.quote}"</p>
+                                                    <p style={{color: '#78716c', fontSize: '0.875rem'}}>
+                                                        — {voice.name} <span style={{color: '#a8a29e'}}>[{voice.platform}]</span>
+                                                        {voice.url && (
+                                                            <a href={voice.url} target="_blank" rel="noopener noreferrer" style={{marginLeft: '0.5rem', color: '#3b82f6', textDecoration: 'none'}}>
+                                                                🔗
+                                                            </a>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Reflection */}
+                                <div style={{background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '1.5rem'}}>
+                                    <h3 style={{fontSize: '1.25rem', fontFamily: 'Georgia, serif', fontWeight: 'bold', color: '#be123c', marginBottom: '1rem'}}>
+                                        💡 Why It Matters
+                                    </h3>
+                                    <p style={{color: '#44403c', lineHeight: '1.7'}}>{digest.reflection}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{maxWidth: '1200px', margin: '0 auto', padding: '2rem', textAlign: 'center', color: '#78716c', fontSize: '0.875rem', borderTop: '1px solid #e7e5e4', marginTop: '3rem'}}>
+                        <p><strong style={{color: '#581c87'}}>CareSpectrum™</strong> is an independent, AI-powered digest created and trademarked by <strong style={{color: '#581c87'}}>Adenike Omoregbee</strong>.</p>
+                        <p style={{marginTop: '0.5rem'}}>© 2025 Adenike Omoregbee ... Foster Carer. All rights reserved.</p>
+                        <p style={{marginTop: '0.5rem'}}>Connect: <a href="https://linkedin.com/in/adenikeomoregbee" target="_blank" rel="noopener noreferrer" style={{color: '#3b82f6', textDecoration: 'none'}}>@adenikeomoregbee on LinkedIn</a></p>
+                    </div>
                 </div>
-              </div>
-            )}
+            );
+        }
 
-            {/* Reflection */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-serif font-bold text-rose-900 mb-4 flex items-center gap-2">
-                💡 Why It Matters
-              </h3>
-              <p className="text-stone-700 leading-relaxed">{digest.reflection}</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="max-w-6xl mx-auto px-6 py-8 text-center text-stone-500 text-sm border-t border-stone-200 mt-12">
-        <p><strong className="text-purple-900">CareSpectrum™</strong> is an independent, AI-powered digest created and trademarked by <strong className="text-purple-900">Adenike Omoregbee</strong>.</p>
-        <p className="mt-2">© 2025 Adenike Omoregbee ... Foster Carer. All rights reserved.</p>
-        <p className="mt-2">Connect: <a href="https://linkedin.com/in/adenikeomoregbee" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">@adenikeomoregbee on LinkedIn</a></p>
-      </div>
-    </div>
-  );
-}
+        ReactDOM.render(<CareSpectrum />, document.getElementById('root'));
+    </script>
+</body>
+</html>
