@@ -40,10 +40,23 @@
                 setProgress('🔍 Searching UK care sector news and generating digest...');
                 
                 try {
+                    // Calculate date range (last 7 days)
+                    const endDate = new Date();
+                    const startDate = new Date();
+                    startDate.setDate(startDate.getDate() - 7);
+                    
+                    const formatDate = (date) => {
+                        const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                       'July', 'August', 'September', 'October', 'November', 'December'];
+                        return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+                    };
+                    
+                    const dateRange = `${formatDate(startDate)} to ${formatDate(endDate)}`;
+                    
                     // ONE comprehensive API call instead of 13!
                     const prompt = `You are CareSpectrum™, an AI digest curator for the UK children and young people's care sector.
 
-Search the web for UK children's care sector developments from the past 7 days and create a comprehensive weekly digest.
+Search the web for UK children's care sector developments from ${dateRange} and create a comprehensive weekly digest.
 
 Cover these topic areas:
 - Foster care and kinship care
@@ -130,13 +143,29 @@ Return ONLY valid JSON, nothing else.`;
                         .join("\n")
                         .trim();
 
-                    // Parse JSON from response
-                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    console.log('Raw response:', text); // Debug log
+
+                    // More robust JSON extraction - handles markdown code blocks and extra text
+                    let jsonText = text;
+                    
+                    // Remove markdown code blocks if present
+                    jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+                    
+                    // Find JSON object (even if there's text before/after)
+                    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
                     if (!jsonMatch) {
-                        throw new Error('Could not parse digest data from response');
+                        console.error('Could not find JSON in response:', text);
+                        throw new Error('Could not find valid JSON in response. The AI may have returned text instead of structured data.');
                     }
 
-                    const digestData = JSON.parse(jsonMatch[0]);
+                    let digestData;
+                    try {
+                        digestData = JSON.parse(jsonMatch[0]);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.error('Attempted to parse:', jsonMatch[0]);
+                        throw new Error('Invalid JSON format in response. Try again.');
+                    }
                     
                     setProgress('✅ Digest generated!');
                     setDigest(digestData);
