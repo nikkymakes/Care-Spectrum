@@ -99,7 +99,7 @@ Only return valid JSON, nothing else.`,
                                 console.error(`Error searching ${term}:`, err);
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            await new Promise(resolve => setTimeout(resolve, 15000));
                         }
                         
                         digestData.categories[category.id] = {
